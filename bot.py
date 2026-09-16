@@ -8,7 +8,7 @@ from aiogram.filters import Command
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 # ----------------- কনফিগারেশন -----------------
-BOT_TOKEN = "8879708023:AAE3tL5Rfdk0IZC7-hR92c-p3H6y9G_Ww40"
+BOT_TOKEN = "8879708023:AAHXoRntXfHB0PqkTbMbBiQ3ZE8raib-N4o"
 ADMIN_ID = 1958884768
 TARGET_GROUP_ID = None
 
