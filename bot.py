@@ -28,6 +28,8 @@ config = {
     "current_version": 1
 }
 
+# গ্রুপ মেসেজ হিস্টরি ট্র্যাকিং (message_id, timestamp)
+GROUP_MESSAGES = {}  # {chat_id: [(msg_id, timestamp)]}
 verified_users = {}
 
 async def auto_delete(msg: types.Message, delay: int = 15):
@@ -37,6 +39,16 @@ async def auto_delete(msg: types.Message, delay: int = 15):
     except Exception:
         pass
 
+# ----------------- মেসেজ সংরক্ষণ (ক্লিনআপের জন্য) -----------------
+def record_msg(chat_id: int, msg_id: int):
+    if chat_id not in GROUP_MESSAGES:
+        GROUP_MESSAGES[chat_id] = []
+    GROUP_MESSAGES[chat_id].append((msg_id, time.time()))
+    # ৪৮ ঘণ্টার বেশি পুরোনো মেমোরি থেকে মুছে ফেলা
+    cutoff = time.time() - (48 * 3600)
+    GROUP_MESSAGES[chat_id] = [m for m in GROUP_MESSAGES[chat_id] if m[1] >= cutoff]
+
+# ----------------- ১. সার্ভিস মেসেজ ক্লিনার -----------------
 @dp.message(F.content_type.in_({'new_chat_members', 'left_chat_member', 'pinned_message'}))
 async def clean_service_messages(message: types.Message):
     try:
@@ -44,6 +56,7 @@ async def clean_service_messages(message: types.Message):
     except Exception:
         pass
 
+# ----------------- ২. নতুন মেম্বার ওয়েলকাম মেসেজ -----------------
 @dp.chat_member()
 async def welcome_member(event: types.ChatMemberUpdated):
     if event.new_chat_member.status == "member" and event.old_chat_member.status in ["left", "kicked"]:
@@ -60,23 +73,32 @@ async def welcome_member(event: types.ChatMemberUpdated):
                 parse_mode="Markdown",
                 reply_markup=kb
             )
+            record_msg(event.chat.id, msg.message_id)
             asyncio.create_task(auto_delete(msg, 25))
         except Exception:
             pass
 
+# ----------------- ৩. মেসেজ ফিল্টারিং ও গ্রুপ হিস্টরি ট্র্যাকিং -----------------
 TG_LINK_REGEX = re.compile(r'(https?://)?(www\.)?(t\.me|telegram\.me)/[a-zA-Z0-9_+/?=-]+', re.IGNORECASE)
 
 @dp.message(F.chat.type.in_({'group', 'supergroup'}))
 async def filter_group_messages(message: types.Message):
     global TARGET_GROUP_ID
     TARGET_GROUP_ID = message.chat.id
+    record_msg(message.chat.id, message.message_id)
 
+    # ক্লিন কমান্ড ইত্যাদি থাকলে হ্যান্ডেল যাতে বিঘ্ন না ঘটে
+    if message.text and message.text.startswith("/"):
+        return
+
+    # অ্যাডমিনদের মেসেজ ফিল্টার হবে না
     if message.from_user.id == ADMIN_ID:
         return
 
     text = message.text or message.caption or ""
     user_id = message.from_user.id
 
+    # শুধুমাত্র টেক্সট এবং টেলিগ্রাম লিংক অনুমোদিত
     is_tg = bool(TG_LINK_REGEX.search(text))
     if not is_tg or message.content_type != 'text':
         try:
@@ -85,6 +107,7 @@ async def filter_group_messages(message: types.Message):
             pass
         return
 
+    # ভেরিফিকেশন চেক
     u_info = verified_users.get(user_id, {"version": 0, "click_time": 0})
     if u_info["version"] != config["current_version"]:
         try:
@@ -125,6 +148,91 @@ async def filter_group_messages(message: types.Message):
             verified_users[user_id] = {"version": 0, "click_time": time.time()}
             asyncio.create_task(auto_delete(w, 20))
 
+# ----------------- ৪. ঘন্টা অনুযায়ী চ্যাট ডিলিট কমান্ড (/clean) -----------------
+@dp.message(Command("clean"), F.chat.type.in_({'group', 'supergroup'}))
+async def cmd_clean_prompt(message: types.Message):
+    if message.from_user.id != ADMIN_ID:
+        return
+
+    # /clean 2 সরাসরি দেওয়া আছে কি না চেক
+    args = message.text.split()
+    if len(args) > 1 and args[1].isdigit():
+        hours = int(args[1])
+        await execute_clean(message.chat.id, hours, message)
+        return
+
+    # অপশন বাটন দেওয়া
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="⏱️ ১ ঘন্টা", callback_data="clean_1"),
+            InlineKeyboardButton(text="⏱️ ২ ঘন্টা", callback_data="clean_2"),
+            InlineKeyboardButton(text="⏱️ ৬ ঘন্টা", callback_data="clean_6")
+        ],
+        [
+            InlineKeyboardButton(text="⏱️ ১২ ঘন্টা", callback_data="clean_12"),
+            InlineKeyboardButton(text="⏱️ ২৪ ঘন্টা", callback_data="clean_24"),
+            InlineKeyboardButton(text="⏱️ ৪৮ ঘন্টা", callback_data="clean_48")
+        ],
+        [InlineKeyboardButton(text="❌ বাতিল করুন", callback_data="clean_cancel")]
+    ])
+    ask_msg = await message.reply(
+        "🗑️ *চ্যাট ডিলিট মেনু*\n\nআপনি কত ঘন্টার চ্যাট মুছে ফেলতে চান তা নির্বাচন করুন, অথবা সরাসরি `/clean <ঘন্টা>` লিখুন (যেমন: `/clean 3`):",
+        parse_mode="Markdown",
+        reply_markup=kb
+    )
+    asyncio.create_task(auto_delete(message, 15))
+    asyncio.create_task(auto_delete(ask_msg, 40))
+
+@dp.callback_query(F.data.startswith("clean_"))
+async def handle_clean_callback(query: types.CallbackQuery):
+    if query.from_user.id != ADMIN_ID:
+        await query.answer("❌ এটি শুধুমাত্র গ্রুপের মূল অ্যাডমিনের জন্য!", show_alert=True)
+        return
+
+    if query.data == "clean_cancel":
+        await query.message.delete()
+        return
+
+    hours = int(query.data.split("_")[1])
+    await query.answer(f"🧹 গত {hours} ঘণ্টার চ্যাট মোছা শুরু হচ্ছে...", show_alert=False)
+    await execute_clean(query.message.chat.id, hours, query.message)
+
+async def execute_clean(chat_id: int, hours: int, trigger_msg: types.Message):
+    now = time.time()
+    cutoff = now - (hours * 3600)
+
+    # মেমোরিতে ট্র্যাক করা মেসেজ এবং সাম্প্রতিক আইডি ডিলিট করা
+    current_mid = trigger_msg.message_id
+    tracked = GROUP_MESSAGES.get(chat_id, [])
+    to_delete = set([m[0] for m in tracked if m[1] >= cutoff])
+
+    # সাম্প্রতিক মেসেজ আইডি রেঞ্জ স্ক্যান (যদি আগে থেকে মেমোরিতে না থাকে)
+    # গড়ে প্রতি ঘণ্টায় ৫০-২০০ মেসেজের অনুমান করে রেঞ্জ নেওয়া
+    estimated_count = min(hours * 150, 1000)
+    for mid in range(current_mid, max(1, current_mid - estimated_count), -1):
+        to_delete.add(mid)
+
+    deleted_count = 0
+    for mid in to_delete:
+        try:
+            await bot.delete_message(chat_id=chat_id, message_id=mid)
+            deleted_count += 1
+            await asyncio.sleep(0.05)  # Telegram Flood limit protection
+        except Exception:
+            pass
+
+    # মেমোরি আপডেট
+    if chat_id in GROUP_MESSAGES:
+        GROUP_MESSAGES[chat_id] = [m for m in GROUP_MESSAGES[chat_id] if m[1] < cutoff]
+
+    done = await bot.send_message(
+        chat_id=chat_id,
+        text=f"✅ *সাফাই সম্পন্ন!* গত *{hours} ঘণ্টার* মোট {deleted_count}টি মেসেজ সফলভাবে মুছে ফেলা হয়েছে।",
+        parse_mode="Markdown"
+    )
+    asyncio.create_task(auto_delete(done, 15))
+
+# ----------------- ৫. ভেরিফিকেশন বাটন হ্যান্ডলার -----------------
 @dp.callback_query(F.data.startswith("v_"))
 async def handle_verification(query: types.CallbackQuery):
     parts = query.data.split("_")
@@ -166,6 +274,7 @@ async def handle_verification(query: types.CallbackQuery):
 
 ADMIN_MSGS = []
 
+# ----------------- ৬. সেলফ-ডেস্ট্রাক্টিং অ্যাডমিন প্যানেল -----------------
 @dp.message(Command("panel"), F.chat.type == "private")
 async def cmd_panel(message: types.Message):
     if message.from_user.id != ADMIN_ID:
@@ -190,7 +299,8 @@ async def cmd_panel(message: types.Message):
         "👉 `/setchannel @username`\n"
         "👉 `/setlink https://t.me/...`\n"
         "👉 `/setad https://...`\n"
-        "👉 `/setwait 15` (সেকেন্ড)"
+        "👉 `/setwait 15` (সেকেন্ড)\n"
+        "👉 গ্রুপে লিখুন: `/clean` বা `/clean 3` (নির্দিষ্ট ঘণ্টার চ্যাট মুছতে)"
     )
     p = await message.answer(text, parse_mode="Markdown", reply_markup=kb)
     ADMIN_MSGS.append(p.message_id)
@@ -258,6 +368,7 @@ async def cmd_setwait(message: types.Message):
         asyncio.create_task(auto_delete(message, 15))
         asyncio.create_task(auto_delete(m, 15))
 
+# ----------------- ৭. প্রমোশনাল অটো শিডিউলার -----------------
 async def promo_broadcast_task():
     while True:
         await asyncio.sleep(config["broadcast_interval"])
@@ -270,6 +381,7 @@ async def promo_broadcast_task():
             except Exception:
                 pass
 
+# ----------------- ৮. মেইন রানার -----------------
 async def main():
     print("🚀 টেলিগ্রাম সেশন রিসেট করা হচ্ছে...")
     await bot.delete_webhook(drop_pending_updates=True)
