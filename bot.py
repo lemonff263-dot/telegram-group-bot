@@ -6,7 +6,7 @@ from aiogram.filters import Command
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 # ----------------- কনফিগারেশন (আপনার তথ্য এখানে দিন) -----------------
-BOT_TOKEN = "8879708023:AAHVNngxsI7hGLOnc9buM94ydavK0mHVXqc"  # আপনার বটের টোকেন দিন
+BOT_TOKEN = "8879708023:AAE3tL5Rfdk0IZCggL88U7FWQ0yF4ELebbk"  # আপনার বটের টোকেন দিন
 ADMIN_ID = 1958884768                        # আপনার টেলিগ্রাম নিউমেরিক আইডি দিন
 
 bot = Bot(token=BOT_TOKEN)
