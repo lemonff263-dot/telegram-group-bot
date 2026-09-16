@@ -1,8 +1,8 @@
-# -*- coding: utf-8 -*-
 import asyncio
 import os
 import re
 import time
+from aiohttp import web
 from aiogram import Bot, Dispatcher, F, types
 from aiogram.filters import Command
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
@@ -39,16 +39,213 @@ async def auto_delete(msg: types.Message, delay: int = 15):
     except Exception:
         pass
 
-# ----------------- মেসেজ সংরক্ষণ (ক্লিনআপের জন্য) -----------------
 def record_msg(chat_id: int, msg_id: int):
     if chat_id not in GROUP_MESSAGES:
         GROUP_MESSAGES[chat_id] = []
     GROUP_MESSAGES[chat_id].append((msg_id, time.time()))
-    # ৪৮ ঘণ্টার বেশি পুরোনো মেমোরি থেকে মুছে ফেলা
     cutoff = time.time() - (48 * 3600)
     GROUP_MESSAGES[chat_id] = [m for m in GROUP_MESSAGES[chat_id] if m[1] >= cutoff]
 
-# ----------------- ১. সার্ভিস মেসেজ ক্লিনার -----------------
+# ==================== ১. কমান্ড হ্যান্ডলার (সবার আগে এক্সিকিউট হবে) ====================
+
+@dp.message(Command("start"))
+async def cmd_start(message: types.Message):
+    await message.reply(
+        "👋 স্বাগতম! আমি আপনার গ্রুপ ম্যানেজমেন্ট ও লিংক শেয়ারিং বট।\n\n"
+        "👑 আপনি যদি অ্যাডমিন হন, তবে লিখুন: `/panel`\n"
+        "🧹 গ্রুপে মেসেজ পরিষ্কার করতে লিখুন: `/clean` বা `/clean 2`",
+        parse_mode="Markdown"
+    )
+
+@dp.message(Command("myid"))
+async def cmd_myid(message: types.Message):
+    await message.reply(
+        f"🆔 আপনার টেলিগ্রাম আইডি: `{message.from_user.id}`\n"
+        f"👑 মূল অ্যাডমিন আইডি: `{ADMIN_ID}`\n"
+        f"✅ স্ট্যাটাস: {'অ্যাডমিন অনুমোদিত' if message.from_user.id == ADMIN_ID else 'সাধারণ সদস্য'}",
+        parse_mode="Markdown"
+    )
+
+@dp.message(Command("clean"))
+async def cmd_clean_prompt(message: types.Message):
+    if message.from_user.id != ADMIN_ID:
+        w = await message.reply("❌ এটি শুধুমাত্র অ্যাডমিনের জন্য অনুমোদিত!")
+        asyncio.create_task(auto_delete(w, 10))
+        return
+
+    record_msg(message.chat.id, message.message_id)
+
+    # /clean 2 ইত্যাদি চেক
+    args = message.text.split()
+    if len(args) > 1 and args[1].isdigit():
+        hours = int(args[1])
+        await execute_clean(message.chat.id, hours, message)
+        return
+
+    # বাটন মেনু
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="⏱️ ১ ঘন্টা", callback_data="clean_1"),
+            InlineKeyboardButton(text="⏱️ ২ ঘন্টা", callback_data="clean_2"),
+            InlineKeyboardButton(text="⏱️ ৬ ঘন্টা", callback_data="clean_6")
+        ],
+        [
+            InlineKeyboardButton(text="⏱️ ১২ ঘন্টা", callback_data="clean_12"),
+            InlineKeyboardButton(text="⏱️ ২৪ ঘন্টা", callback_data="clean_24"),
+            InlineKeyboardButton(text="⏱️ ৪৮ ঘন্টা", callback_data="clean_48")
+        ],
+        [InlineKeyboardButton(text="❌ বাতিল করুন", callback_data="clean_cancel")]
+    ])
+    ask_msg = await message.reply(
+        "🗑️ *চ্যাট ডিলিট মেনু*\n\nআপনি কত ঘন্টার চ্যাট মুছে ফেলতে চান তা নির্বাচন করুন, অথবা সরাসরি `/clean <ঘন্টা>` লিখুন (যেমন: `/clean 3`):",
+        parse_mode="Markdown",
+        reply_markup=kb
+    )
+    asyncio.create_task(auto_delete(message, 15))
+    asyncio.create_task(auto_delete(ask_msg, 45))
+
+@dp.callback_query(F.data.startswith("clean_"))
+async def handle_clean_callback(query: types.CallbackQuery):
+    if query.from_user.id != ADMIN_ID:
+        await query.answer("❌ এটি শুধুমাত্র অ্যাডমিনের জন্য!", show_alert=True)
+        return
+
+    if query.data == "clean_cancel":
+        await query.message.delete()
+        return
+
+    hours = int(query.data.split("_")[1])
+    await query.answer(f"🧹 গত {hours} ঘণ্টার চ্যাট মোছা শুরু হচ্ছে...", show_alert=False)
+    await execute_clean(query.message.chat.id, hours, query.message)
+
+async def execute_clean(chat_id: int, hours: int, trigger_msg: types.Message):
+    now = time.time()
+    cutoff = now - (hours * 3600)
+
+    current_mid = trigger_msg.message_id
+    tracked = GROUP_MESSAGES.get(chat_id, [])
+    to_delete = set([m[0] for m in tracked if m[1] >= cutoff])
+
+    estimated_count = min(hours * 150, 1000)
+    for mid in range(current_mid, max(1, current_mid - estimated_count), -1):
+        to_delete.add(mid)
+
+    deleted_count = 0
+    for mid in to_delete:
+        try:
+            await bot.delete_message(chat_id=chat_id, message_id=mid)
+            deleted_count += 1
+            await asyncio.sleep(0.04)
+        except Exception:
+            pass
+
+    if chat_id in GROUP_MESSAGES:
+        GROUP_MESSAGES[chat_id] = [m for m in GROUP_MESSAGES[chat_id] if m[1] < cutoff]
+
+    done = await bot.send_message(
+        chat_id=chat_id,
+        text=f"✅ *সাফাই সম্পন্ন!* গত *{hours} ঘণ্টার* মোট {deleted_count}টি মেসেজ মুছে ফেলা হয়েছে।",
+        parse_mode="Markdown"
+    )
+    asyncio.create_task(auto_delete(done, 15))
+
+ADMIN_MSGS = []
+
+@dp.message(Command("panel"))
+async def cmd_panel(message: types.Message):
+    if message.from_user.id != ADMIN_ID:
+        return
+    ADMIN_MSGS.append(message.message_id)
+
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=f"🔄 মোড পরিবর্তন (বর্তমান: {config['mode']})", callback_data="adm_mode")],
+        [InlineKeyboardButton(text="♻️ সমস্ত ইউজার রিসেট (Reset All)", callback_data="adm_reset")],
+        [InlineKeyboardButton(text="❌ চ্যাট ক্লোজ ও মুছুন (Wipe)", callback_data="adm_wipe")]
+    ])
+
+    text = (
+        "👑 **অ্যাডমিন কন্ট্রোল প্যানেল**\n\n"
+        f"• বর্তমান মোড: `{config['mode']}`\n"
+        f"• টার্গেট চ্যানেল: `{config['target_channel']}`\n"
+        f"• চ্যানেল লিংক: `{config['target_channel_link']}`\n"
+        f"• অ্যাড লিংক: `{config['ad_link']}`\n"
+        f"• অপেক্ষা সময়: `{config['ad_wait_seconds']} সেকেন্ড`\n"
+        f"• ভার্সন: `{config['current_version']}`\n\n"
+        "💡 *কমান্ডের মাধ্যমে দ্রুত পরিবর্তন করতে পারেন:*\n"
+        "👉 `/setchannel @username`\n"
+        "👉 `/setlink https://t.me/...`\n"
+        "👉 `/setad https://...`\n"
+        "👉 `/setwait 15` (সেকেন্ড)\n"
+        "👉 গ্রুপে লিখুন: `/clean` বা `/clean 3`"
+    )
+    p = await message.answer(text, parse_mode="Markdown", reply_markup=kb)
+    ADMIN_MSGS.append(p.message_id)
+
+@dp.callback_query(F.data.startswith("adm_"))
+async def handle_adm_callbacks(query: types.CallbackQuery):
+    if query.from_user.id != ADMIN_ID:
+        return
+    if query.data == "adm_mode":
+        config["mode"] = "ad_link" if config["mode"] == "join_request" else "join_request"
+        await query.answer(f"মোড বদলানো হয়েছে: {config['mode']}", show_alert=True)
+        await cmd_panel(query.message)
+    elif query.data == "adm_reset":
+        config["current_version"] += 1
+        await query.answer("✅ সমস্ত পুরোনো ইউজার রিসেট হয়েছে!", show_alert=True)
+    elif query.data == "adm_wipe":
+        for m in list(ADMIN_MSGS):
+            try:
+                await bot.delete_message(chat_id=query.message.chat.id, message_id=m)
+            except Exception:
+                pass
+        ADMIN_MSGS.clear()
+
+@dp.message(Command("setchannel"))
+async def cmd_setchannel(message: types.Message):
+    if message.from_user.id != ADMIN_ID:
+        return
+    args = message.text.split()
+    if len(args) > 1:
+        config["target_channel"] = args[1]
+        m = await message.answer(f"✅ টার্গেট চ্যানেল সেট হয়েছে: `{args[1]}`", parse_mode="Markdown")
+        asyncio.create_task(auto_delete(message, 15))
+        asyncio.create_task(auto_delete(m, 15))
+
+@dp.message(Command("setlink"))
+async def cmd_setlink(message: types.Message):
+    if message.from_user.id != ADMIN_ID:
+        return
+    args = message.text.split()
+    if len(args) > 1:
+        config["target_channel_link"] = args[1]
+        m = await message.answer(f"✅ চ্যানেল রিকোয়েস্ট লিংক সেট হয়েছে: `{args[1]}`", parse_mode="Markdown")
+        asyncio.create_task(auto_delete(message, 15))
+        asyncio.create_task(auto_delete(m, 15))
+
+@dp.message(Command("setad"))
+async def cmd_setad(message: types.Message):
+    if message.from_user.id != ADMIN_ID:
+        return
+    args = message.text.split()
+    if len(args) > 1:
+        config["ad_link"] = args[1]
+        m = await message.answer(f"✅ ডাইরেক্ট অ্যাড লিংক সেট হয়েছে: `{args[1]}`", parse_mode="Markdown")
+        asyncio.create_task(auto_delete(message, 15))
+        asyncio.create_task(auto_delete(m, 15))
+
+@dp.message(Command("setwait"))
+async def cmd_setwait(message: types.Message):
+    if message.from_user.id != ADMIN_ID:
+        return
+    args = message.text.split()
+    if len(args) > 1 and args[1].isdigit():
+        config["ad_wait_seconds"] = int(args[1])
+        m = await message.answer(f"✅ অ্যাড ওয়েট টাইম সেট হয়েছে: `{args[1]} সেকেন্ড`", parse_mode="Markdown")
+        asyncio.create_task(auto_delete(message, 15))
+        asyncio.create_task(auto_delete(m, 15))
+
+# ==================== ২. সার্ভিস মেসেজ ও মেম্বার জয়েন ====================
+
 @dp.message(F.content_type.in_({'new_chat_members', 'left_chat_member', 'pinned_message'}))
 async def clean_service_messages(message: types.Message):
     try:
@@ -56,7 +253,6 @@ async def clean_service_messages(message: types.Message):
     except Exception:
         pass
 
-# ----------------- ২. নতুন মেম্বার ওয়েলকাম মেসেজ -----------------
 @dp.chat_member()
 async def welcome_member(event: types.ChatMemberUpdated):
     if event.new_chat_member.status == "member" and event.old_chat_member.status in ["left", "kicked"]:
@@ -78,7 +274,8 @@ async def welcome_member(event: types.ChatMemberUpdated):
         except Exception:
             pass
 
-# ----------------- ৩. মেসেজ ফিল্টারিং ও গ্রুপ হিস্টরি ট্র্যাকিং -----------------
+# ==================== ৩. গ্রুপ মেসেজ ফিল্টারিং ====================
+
 TG_LINK_REGEX = re.compile(r'(https?://)?(www\.)?(t\.me|telegram\.me)/[a-zA-Z0-9_+/?=-]+', re.IGNORECASE)
 
 @dp.message(F.chat.type.in_({'group', 'supergroup'}))
@@ -87,18 +284,13 @@ async def filter_group_messages(message: types.Message):
     TARGET_GROUP_ID = message.chat.id
     record_msg(message.chat.id, message.message_id)
 
-    # ক্লিন কমান্ড ইত্যাদি থাকলে হ্যান্ডেল যাতে বিঘ্ন না ঘটে
-    if message.text and message.text.startswith("/"):
-        return
-
-    # অ্যাডমিনদের মেসেজ ফিল্টার হবে না
+    # অ্যাডমিনদের মেসেজ কোনো ফিল্টার হবে না
     if message.from_user.id == ADMIN_ID:
         return
 
     text = message.text or message.caption or ""
     user_id = message.from_user.id
 
-    # শুধুমাত্র টেক্সট এবং টেলিগ্রাম লিংক অনুমোদিত
     is_tg = bool(TG_LINK_REGEX.search(text))
     if not is_tg or message.content_type != 'text':
         try:
@@ -107,7 +299,6 @@ async def filter_group_messages(message: types.Message):
             pass
         return
 
-    # ভেরিফিকেশন চেক
     u_info = verified_users.get(user_id, {"version": 0, "click_time": 0})
     if u_info["version"] != config["current_version"]:
         try:
@@ -148,91 +339,8 @@ async def filter_group_messages(message: types.Message):
             verified_users[user_id] = {"version": 0, "click_time": time.time()}
             asyncio.create_task(auto_delete(w, 20))
 
-# ----------------- ৪. ঘন্টা অনুযায়ী চ্যাট ডিলিট কমান্ড (/clean) -----------------
-@dp.message(Command("clean"), F.chat.type.in_({'group', 'supergroup'}))
-async def cmd_clean_prompt(message: types.Message):
-    if message.from_user.id != ADMIN_ID:
-        return
+# ==================== ৪. ভেরিফিকেশন বাটন ====================
 
-    # /clean 2 সরাসরি দেওয়া আছে কি না চেক
-    args = message.text.split()
-    if len(args) > 1 and args[1].isdigit():
-        hours = int(args[1])
-        await execute_clean(message.chat.id, hours, message)
-        return
-
-    # অপশন বাটন দেওয়া
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [
-            InlineKeyboardButton(text="⏱️ ১ ঘন্টা", callback_data="clean_1"),
-            InlineKeyboardButton(text="⏱️ ২ ঘন্টা", callback_data="clean_2"),
-            InlineKeyboardButton(text="⏱️ ৬ ঘন্টা", callback_data="clean_6")
-        ],
-        [
-            InlineKeyboardButton(text="⏱️ ১২ ঘন্টা", callback_data="clean_12"),
-            InlineKeyboardButton(text="⏱️ ২৪ ঘন্টা", callback_data="clean_24"),
-            InlineKeyboardButton(text="⏱️ ৪৮ ঘন্টা", callback_data="clean_48")
-        ],
-        [InlineKeyboardButton(text="❌ বাতিল করুন", callback_data="clean_cancel")]
-    ])
-    ask_msg = await message.reply(
-        "🗑️ *চ্যাট ডিলিট মেনু*\n\nআপনি কত ঘন্টার চ্যাট মুছে ফেলতে চান তা নির্বাচন করুন, অথবা সরাসরি `/clean <ঘন্টা>` লিখুন (যেমন: `/clean 3`):",
-        parse_mode="Markdown",
-        reply_markup=kb
-    )
-    asyncio.create_task(auto_delete(message, 15))
-    asyncio.create_task(auto_delete(ask_msg, 40))
-
-@dp.callback_query(F.data.startswith("clean_"))
-async def handle_clean_callback(query: types.CallbackQuery):
-    if query.from_user.id != ADMIN_ID:
-        await query.answer("❌ এটি শুধুমাত্র গ্রুপের মূল অ্যাডমিনের জন্য!", show_alert=True)
-        return
-
-    if query.data == "clean_cancel":
-        await query.message.delete()
-        return
-
-    hours = int(query.data.split("_")[1])
-    await query.answer(f"🧹 গত {hours} ঘণ্টার চ্যাট মোছা শুরু হচ্ছে...", show_alert=False)
-    await execute_clean(query.message.chat.id, hours, query.message)
-
-async def execute_clean(chat_id: int, hours: int, trigger_msg: types.Message):
-    now = time.time()
-    cutoff = now - (hours * 3600)
-
-    # মেমোরিতে ট্র্যাক করা মেসেজ এবং সাম্প্রতিক আইডি ডিলিট করা
-    current_mid = trigger_msg.message_id
-    tracked = GROUP_MESSAGES.get(chat_id, [])
-    to_delete = set([m[0] for m in tracked if m[1] >= cutoff])
-
-    # সাম্প্রতিক মেসেজ আইডি রেঞ্জ স্ক্যান (যদি আগে থেকে মেমোরিতে না থাকে)
-    # গড়ে প্রতি ঘণ্টায় ৫০-২০০ মেসেজের অনুমান করে রেঞ্জ নেওয়া
-    estimated_count = min(hours * 150, 1000)
-    for mid in range(current_mid, max(1, current_mid - estimated_count), -1):
-        to_delete.add(mid)
-
-    deleted_count = 0
-    for mid in to_delete:
-        try:
-            await bot.delete_message(chat_id=chat_id, message_id=mid)
-            deleted_count += 1
-            await asyncio.sleep(0.05)  # Telegram Flood limit protection
-        except Exception:
-            pass
-
-    # মেমোরি আপডেট
-    if chat_id in GROUP_MESSAGES:
-        GROUP_MESSAGES[chat_id] = [m for m in GROUP_MESSAGES[chat_id] if m[1] < cutoff]
-
-    done = await bot.send_message(
-        chat_id=chat_id,
-        text=f"✅ *সাফাই সম্পন্ন!* গত *{hours} ঘণ্টার* মোট {deleted_count}টি মেসেজ সফলভাবে মুছে ফেলা হয়েছে।",
-        parse_mode="Markdown"
-    )
-    asyncio.create_task(auto_delete(done, 15))
-
-# ----------------- ৫. ভেরিফিকেশন বাটন হ্যান্ডলার -----------------
 @dp.callback_query(F.data.startswith("v_"))
 async def handle_verification(query: types.CallbackQuery):
     parts = query.data.split("_")
@@ -272,103 +380,8 @@ async def handle_verification(query: types.CallbackQuery):
             rem = int(config["ad_wait_seconds"] - elapsed)
             await query.answer(f"⏳ অনুগ্রহ করে আরও {rem} সেকেন্ড অপেক্ষা করুন!", show_alert=True)
 
-ADMIN_MSGS = []
+# ==================== ৫. ব্যাকগ্রাউন্ড শিডিউলার ও সার্ভার ====================
 
-# ----------------- ৬. সেলফ-ডেস্ট্রাক্টিং অ্যাডমিন প্যানেল -----------------
-@dp.message(Command("panel"), F.chat.type == "private")
-async def cmd_panel(message: types.Message):
-    if message.from_user.id != ADMIN_ID:
-        return
-    ADMIN_MSGS.append(message.message_id)
-
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=f"🔄 মোড পরিবর্তন (বর্তমান: {config['mode']})", callback_data="adm_mode")],
-        [InlineKeyboardButton(text="♻️ সমস্ত ইউজার রিসেট (Reset All)", callback_data="adm_reset")],
-        [InlineKeyboardButton(text="❌ চ্যাট ক্লোজ ও মুছুন (Wipe)", callback_data="adm_wipe")]
-    ])
-
-    text = (
-        "👑 **অ্যাডমিন কন্ট্রোল প্যানেল**\n\n"
-        f"• বর্তমান মোড: `{config['mode']}`\n"
-        f"• টার্গেট চ্যানেল: `{config['target_channel']}`\n"
-        f"• চ্যানেল লিংক: `{config['target_channel_link']}`\n"
-        f"• অ্যাড লিংক: `{config['ad_link']}`\n"
-        f"• অপেক্ষা সময়: `{config['ad_wait_seconds']} সেকেন্ড`\n"
-        f"• ভার্সন: `{config['current_version']}`\n\n"
-        "💡 *কমান্ডের মাধ্যমে দ্রুত পরিবর্তন করতে পারেন:*\n"
-        "👉 `/setchannel @username`\n"
-        "👉 `/setlink https://t.me/...`\n"
-        "👉 `/setad https://...`\n"
-        "👉 `/setwait 15` (সেকেন্ড)\n"
-        "👉 গ্রুপে লিখুন: `/clean` বা `/clean 3` (নির্দিষ্ট ঘণ্টার চ্যাট মুছতে)"
-    )
-    p = await message.answer(text, parse_mode="Markdown", reply_markup=kb)
-    ADMIN_MSGS.append(p.message_id)
-
-@dp.callback_query(F.data.startswith("adm_"))
-async def handle_adm_callbacks(query: types.CallbackQuery):
-    if query.from_user.id != ADMIN_ID:
-        return
-    if query.data == "adm_mode":
-        config["mode"] = "ad_link" if config["mode"] == "join_request" else "join_request"
-        await query.answer(f"মোড বদলানো হয়েছে: {config['mode']}", show_alert=True)
-        await cmd_panel(query.message)
-    elif query.data == "adm_reset":
-        config["current_version"] += 1
-        await query.answer("✅ সমস্ত পুরোনো ইউজার রিসেট হয়েছে! সবাইকে আবার ভেরিফাই করতে হবে।", show_alert=True)
-    elif query.data == "adm_wipe":
-        for m in list(ADMIN_MSGS):
-            try:
-                await bot.delete_message(chat_id=query.message.chat.id, message_id=m)
-            except Exception:
-                pass
-        ADMIN_MSGS.clear()
-
-@dp.message(Command("setchannel"), F.chat.type == "private")
-async def cmd_setchannel(message: types.Message):
-    if message.from_user.id != ADMIN_ID:
-        return
-    args = message.text.split()
-    if len(args) > 1:
-        config["target_channel"] = args[1]
-        m = await message.answer(f"✅ টার্গেট চ্যানেল সেট হয়েছে: `{args[1]}`", parse_mode="Markdown")
-        asyncio.create_task(auto_delete(message, 15))
-        asyncio.create_task(auto_delete(m, 15))
-
-@dp.message(Command("setlink"), F.chat.type == "private")
-async def cmd_setlink(message: types.Message):
-    if message.from_user.id != ADMIN_ID:
-        return
-    args = message.text.split()
-    if len(args) > 1:
-        config["target_channel_link"] = args[1]
-        m = await message.answer(f"✅ চ্যানেল রিকোয়েস্ট লিংক সেট হয়েছে: `{args[1]}`", parse_mode="Markdown")
-        asyncio.create_task(auto_delete(message, 15))
-        asyncio.create_task(auto_delete(m, 15))
-
-@dp.message(Command("setad"), F.chat.type == "private")
-async def cmd_setad(message: types.Message):
-    if message.from_user.id != ADMIN_ID:
-        return
-    args = message.text.split()
-    if len(args) > 1:
-        config["ad_link"] = args[1]
-        m = await message.answer(f"✅ ডাইরেক্ট অ্যাড লিংক সেট হয়েছে: `{args[1]}`", parse_mode="Markdown")
-        asyncio.create_task(auto_delete(message, 15))
-        asyncio.create_task(auto_delete(m, 15))
-
-@dp.message(Command("setwait"), F.chat.type == "private")
-async def cmd_setwait(message: types.Message):
-    if message.from_user.id != ADMIN_ID:
-        return
-    args = message.text.split()
-    if len(args) > 1 and args[1].isdigit():
-        config["ad_wait_seconds"] = int(args[1])
-        m = await message.answer(f"✅ অ্যাড ওয়েট টাইম সেট হয়েছে: `{args[1]} সেকেন্ড`", parse_mode="Markdown")
-        asyncio.create_task(auto_delete(message, 15))
-        asyncio.create_task(auto_delete(m, 15))
-
-# ----------------- ৭. প্রমোশনাল অটো শিডিউলার -----------------
 async def promo_broadcast_task():
     while True:
         await asyncio.sleep(config["broadcast_interval"])
@@ -381,10 +394,23 @@ async def promo_broadcast_task():
             except Exception:
                 pass
 
-# ----------------- ৮. মেইন রানার -----------------
+async def handle_ping(request):
+    return web.Response(text="Bot is Active and Running!")
+
+async def start_web_server():
+    app = web.Application()
+    app.router.add_get("/", handle_ping)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    port = int(os.environ.get("PORT", 8080))
+    site = web.TCPSite(runner, "0.0.0.0", port)
+    await site.start()
+    print(f"Web server running on port {port}")
+
 async def main():
-    print("🚀 টেলিগ্রাম সেশন রিসেট করা হচ্ছে...")
+    print("🚀 টেলিগ্রাম সেশন প্রস্তুত করা হচ্ছে...")
     await bot.delete_webhook(drop_pending_updates=True)
+    asyncio.create_task(start_web_server())
     asyncio.create_task(promo_broadcast_task())
     print("🚀 টেলিগ্রাম বট সফলভাবে চালু হয়েছে এবং কাজ করছে!")
     await dp.start_polling(bot, drop_pending_updates=True)
