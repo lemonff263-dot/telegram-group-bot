@@ -17,13 +17,13 @@ dp = Dispatcher()
 
 config = {
     "mode": "join_request",
-    "target_channel": "@YourChannelName",
-    "target_channel_link": "https://t.me/YourChannelLink",
+    "target_channel": "@romantic_video900",
+    "target_channel_link": "https://t.me/romantic_video900",
     "ad_link": "https://google.com",
     "ad_wait_seconds": 15,
     "promo_text": "🔥 সেরা টেলিগ্রাম চ্যানেল ও গ্রুপের জন্য আমাদের মেইন চ্যানেলে জয়েন করুন!",
     "promo_btn_text": "🚀 জয়েন করুন",
-    "promo_btn_link": "https://t.me/YourChannelLink",
+    "promo_btn_link": "https://t.me/romantic_video900",
     "broadcast_interval": 3600,
     "current_version": 1
 }
