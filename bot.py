@@ -270,3 +270,24 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+from aiohttp import web
+import os
+
+async def handle_ping(request):
+    return web.Response(text="Bot is Alive!")
+
+async def main():
+    print("🚀 টেলিগ্রাম বট চালু হয়েছে...")
+    TARGET_GROUP_ID = -1001234567890 
+    asyncio.create_task(auto_promo_scheduler(TARGET_GROUP_ID))
+    
+    # ফ্রি রেন্ডার ওয়েব সার্ভার
+    app = web.Application()
+    app.router.add_get("/", handle_ping)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    port = int(os.environ.get("PORT", 8080))
+    site = web.TCPSite(runner, "0.0.0.0", port)
+    await site.start()
+
+    await dp.start_polling(bot)
