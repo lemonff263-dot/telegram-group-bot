@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import asyncio
+import uuid
 import json
 import os
 import re
@@ -56,6 +57,7 @@ verified_users = {}      # {str(user_id): {"version": int, "time": float, "name"
 all_known_users = {}     # {str(user_id): {"name": str, "username": str, "joined_at": float, "links_shared": int}}
 admin_input_state = {}   # {user_id: {"action": str, "step": str}}
 GROUP_MESSAGES = {}      # {chat_id: [(msg_id, timestamp)]}
+ad_sessions = {}         # {token: dict}
 
 def load_data():
     global config, shutdown_state, verified_users, all_known_users, TARGET_GROUP_ID
@@ -246,6 +248,31 @@ async def trigger_group_revive():
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message):
     track_user(message.from_user)
+    # --- স্পন্সর/অ্যাড লিংক ট্র্যাকিং (Deep-Link /start ad_TOKEN) ---
+    args = message.text.split() if message.text else []
+    if len(args) > 1 and args[1].startswith("ad_"):
+        token = args[1][3:]
+        sess = ad_sessions.get(token)
+        if sess and sess["user_id"] == message.from_user.id:
+            now = time.time()
+            sess["clicked"] = True
+            sess["click_time"] = now
+            wait_s = sess["wait_seconds"]
+            ad_url = config.get("ad_link", "https://google.com")
+            
+            kb = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="🌐 মূল ওয়েবসাইটে যান (অপেক্ষা করুন)", url=ad_url)],
+                [InlineKeyboardButton(text="✅ ভেরিফাই সম্পন্ন করুন", callback_data=f"v_ad_{sess['user_id']}_{token}")]
+            ])
+            await message.reply(
+                f"🎉 **স্পন্সর ওয়েবসাইট ভিজিট সেশন চালু হয়েছে!**\n\n"
+                f"⏱️ নিয়ম অনুযায়ী আপনাকে মূল ওয়েবসাইটে গিয়ে বাধ্যতামূলকভাবে কমপক্ষে **{wait_s} সেকেন্ড** অবস্থান করতে হবে।\n\n"
+                f"⚠️ *কঠোর সতর্কতা:* নির্দিষ্ট সময়ের পূর্বে ফিরে এসে বোতাম চাপলে কিংবা ওয়েবসাইটে না গিয়ে চাপলে ভেরিফিকেশন হবে না। সময় শেষ হওয়ার পর নিচের '✅ ভেরিফাই সম্পন্ন করুন' বোতামে চাপ দিন।",
+                parse_mode="Markdown",
+                reply_markup=kb
+            )
+            return
+
     if message.chat.type == "private":
         if message.from_user.id == ADMIN_ID:
             await cmd_admin_main(message)
@@ -1076,23 +1103,32 @@ async def handle_group_traffic(message: types.Message):
             asyncio.create_task(auto_delete(w, 20))
 
         elif config["mode"] == "ad_link":
+            # সিকিউর ওয়ান-টাইম সেশন টোকেন তৈরি (100% ক্লিক ও সময় ট্র্যাকিং নিশ্চিত করতে)
+            token = uuid.uuid4().hex[:10]
+            ad_sessions[token] = {
+                "user_id": user.id,
+                "created_at": time.time(),
+                "wait_seconds": config.get("ad_wait_seconds", 15),
+                "clicked": False,
+                "click_time": 0
+            }
+            try:
+                bot_user = (await bot.get_me()).username
+                track_url = f"https://t.me/{bot_user}?start=ad_{token}"
+            except Exception:
+                track_url = config.get("ad_link", "https://google.com")
+
             kb = InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="🌐 লিংকে গিয়ে অপেক্ষা করুন", url=config["ad_link"])],
-                [InlineKeyboardButton(text="✅ ভেরিফাই করুন", callback_data=f"v_ad_{user.id}")]
+                [InlineKeyboardButton(text="🌐 ওয়েবসাইটে প্রবেশ করুন", url=track_url)],
+                [InlineKeyboardButton(text="✅ ভেরিফাই করুন", callback_data=f"v_ad_{user.id}_{token}")]
             ])
             w = await message.answer(
-                f"⚠️ [{user.first_name}](tg://user?id={user.id}), লিংক শেয়ার আনলক করতে নিচের ওয়েবসাইটে গিয়ে {config['ad_wait_seconds']} সেকেন্ড অপেক্ষা করে ভেরিফাই বাটনে চাপ দিন!",
+                f"⚠️ [{user.first_name}](tg://user?id={user.id}), গ্রুপে লিংক শেয়ারের অনুমতি পেতে স্পন্সর ওয়েবসাইটে প্রবেশ করে পুরো **{config['ad_wait_seconds']} সেকেন্ড** অপেক্ষা করতে হবে!\n\n"
+                f"📌 *নির্দেশনা:* প্রথমে নিচের '🌐 ওয়েবসাইটে প্রবেশ করুন' বোতাম চেপে ওয়েবসাইটে গিয়ে সম্পূর্ণ সময় থাকুন, তারপর '✅ ভেরিফাই করুন' বোতাম চাপুন। নির্দিষ্ট সময়ের আগে চাপলে ভেরিফাই হবে না!",
                 parse_mode="Markdown",
                 reply_markup=kb
             )
-            verified_users[str(user.id)] = {
-                "version": 0,
-                "click_time": time.time(),
-                "name": user.full_name or user.first_name,
-                "username": f"@{user.username}" if user.username else "নেই"
-            }
-            save_data()
-            asyncio.create_task(auto_delete(w, 25))
+            asyncio.create_task(auto_delete(w, 40))
 
 # ==================== ১০. ভেরিফিকেশন বাটন কলব্যাক ====================
 
@@ -1129,26 +1165,51 @@ async def handle_user_verification_callback(query: types.CallbackQuery):
         await query.answer("❌ আপনি এখনো রিকোয়েস্ট পাঠাননি! দয়া করে চ্যানেলে জয়েন রিকোয়েস্ট দিন।", show_alert=True)
 
     elif v_type == "ad":
-        u_info = verified_users.get(str(u_id), {"version": 0, "click_time": 0})
-        start_time = u_info.get("click_time", 0)
+        token = parts[3] if len(parts) > 3 else None
+        sess = ad_sessions.get(token) if token else None
+        required = config.get("ad_wait_seconds", 15)
+
+        # ১. ইউজার কি লিংকের ভেতরে প্রবেশ করেছে?
+        if not sess or not sess.get("clicked", False):
+            await query.answer(
+                "❌ ভেরিফিকেশন ব্যর্থ!\n\n"
+                "আপনি এখনো ওয়েবসাইটের ভেতরে প্রবেশ করেননি! দয়া করে প্রথমে '🌐 ওয়েবসাইটে প্রবেশ করুন' বোতামে চেপে ওয়েবসাইটে যান।",
+                show_alert=True
+            )
+            return
+
+        # ২. ইউজার কি নির্দিষ্ট সময় অপেক্ষা করেছে?
+        start_time = sess.get("click_time", 0)
         elapsed = time.time() - start_time
-        required = config["ad_wait_seconds"]
-        if elapsed >= required:
-            verified_users[str(u_id)] = {
-                "version": config["current_version"],
-                "time": time.time(),
-                "name": user.full_name or user.first_name,
-                "username": f"@{user.username}" if user.username else "নেই"
-            }
-            save_data()
-            await query.answer("🎉 ভেরিফিকেশন সফল! আপনার লিংক শেয়ারিং আনলক হয়েছে।", show_alert=True)
-            try:
-                await query.message.delete()
-            except Exception:
-                pass
-        else:
-            remaining = int(required - elapsed)
-            await query.answer(f"⏳ অনুগ্রহ করে আরও {remaining} সেকেন্ড লিংকে অপেক্ষা করুন!", show_alert=True)
+        required = sess.get("wait_seconds", required)
+
+        if elapsed < required:
+            remaining = max(1, int(required - elapsed))
+            await query.answer(
+                f"⏳ আপনি নির্দিষ্ট সময় অপেক্ষা করেননি!\n\n"
+                f"আপনি মাত্র {int(elapsed)} সেকেন্ড ছিলেন। নিয়ম অনুযায়ী আপনাকে আরও {remaining} সেকেন্ড ওয়েবসাইটে অবস্থান করতে হবে। সময় শেষ হওয়ার পর আবার চেষ্টা করুন।",
+                show_alert=True
+            )
+            return
+
+        # ৩. শতভাগ শর্ত পূরণ: ইউজার লিংকে গেছে এবং নির্দিষ্ট সময় অবস্থান করেছে
+        verified_users[str(u_id)] = {
+            "version": config["current_version"],
+            "time": time.time(),
+            "name": user.full_name or user.first_name,
+            "username": f"@{user.username}" if user.username else "নেই"
+        }
+        save_data()
+
+        # ব্যবহৃত সেশন ডিলিট
+        if token in ad_sessions:
+            del ad_sessions[token]
+
+        await query.answer("🎉 চমৎকার! ভেরিফিকেশন সফল হয়েছে। আপনার লিংক শেয়ারিং পারমিশন আনলক করা হয়েছে।", show_alert=True)
+        try:
+            await query.message.delete()
+        except Exception:
+            pass
 
 # ==================== ১১. ব্যাকগ্রাউন্ড শিডিউলার্স ====================
 
