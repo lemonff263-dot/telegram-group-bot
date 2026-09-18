@@ -40,13 +40,14 @@ dp = Dispatcher()
 # ----------------- ডিফল্ট কনফিগারেশন (A to Z) -----------------
 default_config = {
     # ১. মোড ও চ্যানেল/লিংক
-    "mode": "join_request",                # "join_request" অথবা "ad_link"
+    "mode": "both",                        # "both" (উভয় অপশন), "join_request", অথবা "ad_link"
     "target_channel": "@romantic_video900",
     "target_channel_link": "https://t.me/romantic_video900",
-    "ad_link": "https://google.com",
+    "ad_link": "https://negotiatenapkin.com/x4ihpte44?key=4a61bc5be7fb6bf03e4b91ff497b17e6",
+    "target_group_invite": "https://t.me/+1Q-p9zTyPpQ5MWVl",
 
     # ২. টাইমার ও সময়সীমা (Seconds / Minutes / Hours)
-    "ad_wait_seconds": 15,                 # অ্যাড ওয়েবসাইটে অপেক্ষার সেকেন্ড
+    "ad_wait_seconds": 8,                  # অ্যাড ওয়েবসাইটে অপেক্ষার সেকেন্ড (৮ সেকেন্ড)
     "verify_card_delete_sec": 30,          # ভেরিফিকেশন কার্ড ডিলিট টাইমার
     "non_link_warn_delete_sec": 8,         # সাধারণ মেসেজ নিষেধ নোটিশ ডিলিট টাইমার
     "other_link_warn_delete_sec": 12,      # অন্য লিংক নিষেধ নোটিশ ডিলিট টাইমার
@@ -112,9 +113,9 @@ default_config = {
     "vip_custom_button_enabled": True,     # VIP মেম্বারদের লিংকে বিশেষ বাটন ও রিঅ্যাকশন
 
     # ভার্চুয়াল শপের মূল্য তালিকা
-    "cost_pinned_1h": 500,                 # ১ ঘণ্টার পিন্ড মেসেজ সুবিধা
-    "cost_unlimited_24h": 1000,            # ২৪ ঘণ্টার আনলিমিটেড লিংক সুবিধা
-    "cost_vip_7d": 2000,                   # ৭ দিনের VIP মেম্বারশিপ
+    "cost_pinned_1h": 2000,                 # ১ ঘণ্টার পিন্ড মেসেজ সুবিধা
+    "cost_unlimited_24h": 4000,            # ২৪ ঘণ্টার আনলিমিটেড লিংক সুবিধা
+    "cost_vip_7d": 8000,                   # ৭ দিনের VIP মেম্বারশিপ
 
     # ৯. পাবলিক গ্রুপ ও অটো জয়েন রিকোয়েস্ট সেটিংস
     "auto_accept_join_requests": False,    # গ্রুপে অটো জয়েন রিকোয়েস্ট একসেপ্ট (ডিফল্ট: বন্ধ)
@@ -622,9 +623,9 @@ def build_tasks_view(user_id: int, user: types.User = None):
 def build_shop_view(user_id: int, user: types.User = None):
     prof = get_user_profile(user_id, user)
     pts = prof.get("points", 0)
-    c_pin = config.get("cost_pinned_1h", 500)
-    c_unl = config.get("cost_unlimited_24h", 1000)
-    c_vip = config.get("cost_vip_7d", 2000)
+    c_pin = config.get("cost_pinned_1h", 2000)
+    c_unl = config.get("cost_unlimited_24h", 4000)
+    c_vip = config.get("cost_vip_7d", 8000)
 
     text = (
         "🛒 <b>পয়েন্ট রিডিম শপ ও ভার্চুয়াল স্টোর</b>\n"
@@ -1290,7 +1291,7 @@ async def handle_shop_purchases(query: types.CallbackQuery):
     now = time.time()
 
     if data == "buy_pass_pinned":
-        cost = config.get("cost_pinned_1h", 500)
+        cost = config.get("cost_pinned_1h", 2000)
         if pts < cost:
             await query.answer(f"❌ অপর্যাপ্ত পয়েন্ট! আপনার দরকার {cost} Points (আছে {pts})।", show_alert=True)
             return
@@ -1305,7 +1306,7 @@ async def handle_shop_purchases(query: types.CallbackQuery):
             pass
 
     elif data == "buy_pass_unlimited":
-        cost = config.get("cost_unlimited_24h", 1000)
+        cost = config.get("cost_unlimited_24h", 4000)
         if pts < cost:
             await query.answer(f"❌ অপর্যাপ্ত পয়েন্ট! আপনার দরকার {cost} Points (আছে {pts})।", show_alert=True)
             return
@@ -1320,7 +1321,7 @@ async def handle_shop_purchases(query: types.CallbackQuery):
             pass
 
     elif data == "buy_pass_vip":
-        cost = config.get("cost_vip_7d", 2000)
+        cost = config.get("cost_vip_7d", 8000)
         if pts < cost:
             await query.answer(f"❌ অপর্যাপ্ত পয়েন্ট! আপনার দরকার {cost} Points (আছে {pts})।", show_alert=True)
             return
@@ -1673,10 +1674,12 @@ async def handle_admin_branches(query: types.CallbackQuery):
 
     # --- মোড টগল (Join Request <-> Ad Link) ---
     elif data == "act_toggle_mode":
-        if config["mode"] == "join_request":
+        if config["mode"] == "both":
+            config["mode"] = "join_request"
+        elif config["mode"] == "join_request":
             config["mode"] = "ad_link"
         else:
-            config["mode"] = "join_request"
+            config["mode"] = "both"
         save_data()
         mode_label = "চ্যানেল জয়েন রিকোয়েস্ট" if config["mode"] == "join_request" else "ডাইরেক্ট অ্যাড লিংক"
         await query.answer(f"✅ মোড পরিবর্তন সম্পন্ন: {mode_label}", show_alert=True)
@@ -3028,8 +3031,78 @@ async def handle_group_traffic(message: types.Message):
         except Exception:
             pass
 
+        # মোড: অপশন C (উভয় অপশন: জয়েন রিকোয়েস্ট অথবা ৮ সেকেন্ডের ডাইরেক্ট অ্যাড লিংক)
+        if config.get("mode") in ["both", "combined"]:
+            # লাইভ চেক: ইউজার কি ইতিমধ্যে চ্যানেলে জয়েন আছে?
+            try:
+                target_chan = config.get("target_channel", "@romantic_video900")
+                member = await bot.get_chat_member(chat_id=target_chan, user_id=user.id)
+                if member.status in ["member", "administrator", "creator", "restricted"]:
+                    await grant_user_verification(message.chat.id, user)
+                    succ_tpl = config.get(
+                        "msg_verify_success",
+                        "🎉 {user_link}, আপনার ভেরিফিকেশন সফল হয়েছে! আপনার লিংক শেয়ারিং পারমিশন আনলক করা হয়েছে।"
+                    )
+                    succ_txt = succ_tpl.replace("{user_link}", user_link)
+                    notice = await bot.send_message(
+                        chat_id=message.chat.id,
+                        text=succ_txt,
+                        parse_mode="HTML"
+                    )
+                    del_sec = config.get("verify_success_delete_sec", 10)
+                    asyncio.create_task(auto_delete(notice, del_sec))
+                    return
+            except Exception as e:
+                print("Live channel check error:", e)
+
+            # অ্যাড ট্র্যাকিং সেশন তৈরি
+            token = uuid.uuid4().hex[:10]
+            ad_sessions[token] = {
+                "user_id": user.id,
+                "created_at": time.time(),
+                "wait_seconds": int(config.get("ad_wait_seconds", 8)),
+                "clicked": False,
+                "click_time": 0
+            }
+            try:
+                bot_user = (await bot.get_me()).username
+                track_url = f"https://t.me/{bot_user}?start=ad_{token}"
+            except Exception:
+                track_url = config.get("ad_link", "https://negotiatenapkin.com/x4ihpte44?key=4a61bc5be7fb6bf03e4b91ff497b17e6")
+
+            btn_join = config.get("btn_join_req", "👉 চ্যানেলে জয়েন রিকোয়েস্ট পাঠান")
+            btn_verify_req = config.get("btn_join_verify", "✅ রিকোয়েস্ট দিয়েছি (ভেরিফাই)")
+            btn_ad_visit = f"🌐 অ্যাড লিংকে ৮ সেকেন্ড অপেক্ষা করুন"
+            btn_verify_ad = "✅ ওয়েবসাইট ভেরিফাই সম্পন্ন করুন"
+
+            kb = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text=btn_join, url=config.get("target_channel_link", "https://t.me/romantic_video900"))],
+                [InlineKeyboardButton(text=btn_verify_req, callback_data=f"v_req_{user.id}")],
+                [InlineKeyboardButton(text=btn_ad_visit, url=track_url)],
+                [InlineKeyboardButton(text=btn_verify_ad, callback_data=f"v_ad_{user.id}_{token}")]
+            ])
+
+            wait_s = config.get("ad_wait_seconds", 8)
+            card_txt = (
+                f"⚠️ {user_link}, গ্রুপে লিংক শেয়ারের অনুমতি পেতে নিচের যেকোনো <b>১টি পদ্ধতি</b> সম্পন্ন করুন:\n\n"
+                f"🔹 <b>১ম পদ্ধতি:</b> মূল চ্যানেলে জয়েন রিকোয়েস্ট পাঠিয়ে ভেরিফাই চাপুন।\n"
+                f"🔹 <b>২য় পদ্ধতি:</b> স্পন্সর ওয়েবসাইটে গিয়ে মাত্র <b>{wait_s} সেকেন্ড</b> অপেক্ষা করে ভেরিফাই চাপুন।\n\n"
+                f"👇 <i>পছন্দমতো বোতাম বেছে নিন:</i>"
+            )
+            try:
+                w = await bot.send_message(
+                    chat_id=message.chat.id,
+                    text=card_txt,
+                    parse_mode="HTML",
+                    reply_markup=kb
+                )
+                del_sec = config.get("verify_card_delete_sec", 30)
+                asyncio.create_task(auto_delete(w, del_sec))
+            except Exception as e:
+                print("Error sending both mode card:", e)
+
         # মোড ১: চ্যানেল জয়েন রিকোয়েস্ট মোড
-        if config.get("mode") == "join_request":
+        elif config.get("mode") == "join_request":
             # লাইভ চেক: ইউজার কি ইতিমধ্যে চ্যানেলে জয়েন আছে?
             try:
                 target_chan = config.get("target_channel", "@romantic_video900")
