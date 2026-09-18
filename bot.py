@@ -136,30 +136,93 @@ default_shutdown_state = {
 
 default_monetization_tasks = [
     {
-        "id": "adsterra_1",
-        "title": "🌐 স্পন্সর ওয়েবসাইট ভিজিট (Adsterra Direct Ad)",
+        "id": "task_ad_1",
+        "title": "🌐 স্পন্সর ওয়েবসাইট ভিজিট (৮ সেকেন্ড)",
         "type": "ad_wait",
-        "url": "https://google.com",
-        "wait_sec": 15,
+        "url": "https://negotiatenapkin.com/x4ihpte44?key=4a61bc5be7fb6bf03e4b91ff497b17e6",
+        "wait_seconds": 8,
         "points": 50,
         "active": True
     },
     {
-        "id": "chan_official",
-        "title": "📢 আমাদের অফিসিয়াল চ্যানেলে জয়েন করুন",
+        "id": "task_grp_1",
+        "title": "👥 আমাদের গ্রুপে জয়েন করুন (ফ্রি লিংক এর বিনিময়)",
         "type": "channel_join",
-        "channel": "@romantic_video900",
-        "link": "https://t.me/romantic_video900",
-        "points": 100,
+        "channel_username": "@romantic_video900",
+        "channel_link": "https://t.me/+1Q-p9zTyPpQ5MWVl",
+        "points": 50,
         "active": True
     },
     {
-        "id": "adsterra_bonus",
-        "title": "🔥 স্পেশাল অফার পেজ ১০ সেকেন্ড দেখুন",
+        "id": "task_ad_2",
+        "title": "🌐 স্পন্সর পার্টনার সাইট ভিজিট (৮ সেকেন্ড)",
         "type": "ad_wait",
-        "url": "https://google.com",
-        "wait_sec": 10,
-        "points": 75,
+        "url": "https://negotiatenapkin.com/x4ihpte44?key=4a61bc5be7fb6bf03e4b91ff497b17e6",
+        "wait_seconds": 8,
+        "points": 50,
+        "active": True
+    },
+    {
+        "id": "task_ad_3",
+        "title": "🌐 স্পেশাল ডাইরেক্ট অ্যাড ভিজিট (৮ সেকেন্ড)",
+        "type": "ad_wait",
+        "url": "https://negotiatenapkin.com/x4ihpte44?key=4a61bc5be7fb6bf03e4b91ff497b17e6",
+        "wait_seconds": 8,
+        "points": 50,
+        "active": True
+    },
+    {
+        "id": "task_chan_1",
+        "title": "📢 আমাদের মূল চ্যানেলে জয়েন করুন",
+        "type": "channel_join",
+        "channel_username": "@romantic_video900",
+        "channel_link": "https://t.me/romantic_video900",
+        "points": 50,
+        "active": True
+    },
+    {
+        "id": "task_ad_4",
+        "title": "🌐 প্রিমিয়াম অ্যাড পেজ ভিজিট (৮ সেকেন্ড)",
+        "type": "ad_wait",
+        "url": "https://negotiatenapkin.com/x4ihpte44?key=4a61bc5be7fb6bf03e4b91ff497b17e6",
+        "wait_seconds": 8,
+        "points": 50,
+        "active": True
+    },
+    {
+        "id": "task_ad_5",
+        "title": "🌐 ভিআইপি স্পন্সর লিংক ভিজিট (৮ সেকেন্ড)",
+        "type": "ad_wait",
+        "url": "https://negotiatenapkin.com/x4ihpte44?key=4a61bc5be7fb6bf03e4b91ff497b17e6",
+        "wait_seconds": 8,
+        "points": 50,
+        "active": True
+    },
+    {
+        "id": "task_grp_2",
+        "title": "👥 অফিসিয়াল সাপোর্ট গ্রুপে জয়েন করুন",
+        "type": "channel_join",
+        "channel_username": "@romantic_video900",
+        "channel_link": "https://t.me/+1Q-p9zTyPpQ5MWVl",
+        "points": 50,
+        "active": True
+    },
+    {
+        "id": "task_ad_6",
+        "title": "🌐 ডেইলি রিওয়ার্ড অ্যাড ভিজিট (৮ সেকেন্ড)",
+        "type": "ad_wait",
+        "url": "https://negotiatenapkin.com/x4ihpte44?key=4a61bc5be7fb6bf03e4b91ff497b17e6",
+        "wait_seconds": 8,
+        "points": 50,
+        "active": True
+    },
+    {
+        "id": "task_ad_7",
+        "title": "🌐 বোনাস অফার পেজ ভিজিট (৮ সেকেন্ড)",
+        "type": "ad_wait",
+        "url": "https://negotiatenapkin.com/x4ihpte44?key=4a61bc5be7fb6bf03e4b91ff497b17e6",
+        "wait_seconds": 8,
+        "points": 50,
         "active": True
     }
 ]
@@ -1152,7 +1215,7 @@ async def handle_task_callbacks(query: types.CallbackQuery):
             "task_id": tid,
             "start_time": time.time(),
             "wait_seconds": target_task.get("wait_seconds", 15),
-            "points": target_task.get("points", 100)
+            "points": target_task.get("points", 50)
         }
 
         ad_url = target_task.get("url", config.get("ad_link", "https://google.com"))
@@ -1249,7 +1312,7 @@ async def handle_task_callbacks(query: types.CallbackQuery):
             if member.status in ["member", "administrator", "creator", "restricted"]:
                 if tid not in prof.get("tasks_completed", []):
                     prof.setdefault("tasks_completed", []).append(tid)
-                    pts = target_task.get("points", 150)
+                    pts = target_task.get("points", 50)
                     prof["points"] = prof.get("points", 0) + pts
                     save_data()
                     await query.answer(f"🎉 সফল! আপনি চ্যানেলে জয়েন করেছেন এবং +{pts} Points পেয়েছেন!", show_alert=True)
@@ -1874,7 +1937,7 @@ async def handle_admin_branches(query: types.CallbackQuery):
         t_lines = []
         for i, t in enumerate(monetization_tasks, 1):
             st = "🟢" if t.get("active", True) else "🔴"
-            tp = "🌐 Adsterra/Web" if t.get("type") == "ad_wait" else "📢 TG Channel"
+            tp = "🌐 Direct Ad" if t.get("type") == "ad_wait" else "📢 TG Group/Chan"
             t_lines.append(f"{i}. {st} <b>{html.escape(t.get('title', 'Task'))}</b> ({tp}) — <code>+{t.get('points')} pts</code>")
         tasks_display = "\n".join(t_lines) if t_lines else "<i>কোনো টাস্ক তৈরি করা হয়নি।</i>"
 
@@ -1882,27 +1945,105 @@ async def handle_admin_branches(query: types.CallbackQuery):
             "💰 <b>অ্যাড ও টাস্ক মনিটাইজেশন কন্ট্রোল হাব</b>\n"
             "━━━━━━━━━━━━━━━━━━━━\n"
             f"📊 <b>মোট সক্রিয় টাস্ক:</b> <code>{active_count}/{len(monetization_tasks)} টি</code>\n"
-            f"🌐 <b>অ্যাডস্টারা / ডাইরেক্ট লিংক টাস্ক:</b> <code>{ad_count} টি</code>\n"
-            f"📢 <b>টেলিগ্রাম চ্যানেল জয়েন টাস্ক:</b> <code>{chan_count} টি</code>\n\n"
+            f"🌐 <b>ডাইরেক্ট লিংক / অ্যাড টাস্ক:</b> <code>{ad_count} টি</code>\n"
+            f"👥 <b>গ্রুপ / চ্যানেল জয়েন টাস্ক:</b> <code>{chan_count} টি</code>\n\n"
             f"📋 <b>বিদ্যমান টাস্ক তালিকা:</b>\n{tasks_display}\n\n"
-            "💡 <i>ইউজাররা এই টাস্কগুলো সম্পন্ন করে পয়েন্ট পাবে, আর আপনি প্রতিটি ক্লিকে ও চ্যানেলে প্রফিট/গ্রোথ পাবেন!</i>"
+            "💡 <i>ইউজাররা এই ১০টি টাস্ক পূরণ করে প্রতিটি থেকে ৫০ পয়েন্ট করে মোট ৫০০ পয়েন্ট আয় করতে পারবে!</i>"
         )
+
         kb = InlineKeyboardMarkup(inline_keyboard=[
             [
-                InlineKeyboardButton(text="➕ নতুন ডাইরেক্ট অ্যাড টাস্ক", callback_data="act_add_task_ad"),
-                InlineKeyboardButton(text="➕ নতুন চ্যানেল টাস্ক", callback_data="act_add_task_chan")
+                InlineKeyboardButton(text="✏️ টাস্ক কাস্টমাইজেশন ও এডিট", callback_data="br_edit_tasks_list"),
+                InlineKeyboardButton(text="🔄 সচল/অচল ও ডিলিট", callback_data="br_toggle_tasks")
             ],
             [
-                InlineKeyboardButton(text="🔄 টাস্ক সচল/অচল ও ডিলিট", callback_data="br_toggle_tasks"),
-                InlineKeyboardButton(text="📢 গ্রুপে লিডারবোর্ড প্রকাশ", callback_data="act_announce_leaderboard")
+                InlineKeyboardButton(text="➕ নতুন ডাইরেক্ট অ্যাড টাস্ক", callback_data="act_add_task_ad"),
+                InlineKeyboardButton(text="➕ নতুন গ্রুপ/চ্যানেল টাস্ক", callback_data="act_add_task_chan")
             ],
-            [InlineKeyboardButton(text="🔙 মূল মেনুতে ফেরত যান", callback_data="br_main")]
+            [
+                InlineKeyboardButton(text="📢 গ্রুপে লিডারবোর্ড প্রকাশ", callback_data="act_announce_leaderboard"),
+                InlineKeyboardButton(text="🔙 মূল মেনুতে ফেরত যান", callback_data="br_main")
+            ]
         ])
         await query.message.edit_text(text, parse_mode="HTML", reply_markup=kb)
         await query.answer()
         return
 
-    # --- টাস্ক অন/অফ ও ম্যানেজমেন্ট শাখা ---
+    # --- টাস্ক কাস্টমাইজেশন ও তালিকা শাখা ---
+    elif data == "br_edit_tasks_list":
+        if not monetization_tasks:
+            await query.answer("কোনো টাস্ক নেই!", show_alert=True)
+            return
+        kb = []
+        for i, t in enumerate(monetization_tasks, 1):
+            tid = t.get("id")
+            title = t.get("title")
+            pts = t.get("points", 50)
+            kb.append([
+                InlineKeyboardButton(text=f"✏️ #{i}. {title} (+{pts}p)", callback_data=f"edit_task_view_{tid}")
+            ])
+        kb.append([InlineKeyboardButton(text="🔙 টাস্ক হাবে ফিরুন", callback_data="br_monetization")])
+        await query.message.edit_text(
+            "✏️ <b>টাস্ক কাস্টমাইজেশন প্যানেল</b>\n"
+            "━━━━━━━━━━━━━━━━━━━━\n"
+            "যে টাস্কটির <b>নাম, লিংক, পয়েন্ট বা অপেক্ষার সময়</b> পরিবর্তন করতে চান সেটি নির্বাচন করুন:",
+            parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=kb)
+        )
+        await query.answer()
+        return
+
+    # --- নির্দিষ্ট টাস্কের বিস্তারিত এডিট ভিউ ---
+    elif data.startswith("edit_task_view_"):
+        tid = data.replace("edit_task_view_", "")
+        t = next((x for x in monetization_tasks if x.get("id") == tid), None)
+        if not t:
+            await query.answer("❌ টাস্ক পাওয়া যায়নি!", show_alert=True)
+            return
+        ttype = t.get("type", "ad_wait")
+        url_link = t.get("url") if ttype == "ad_wait" else t.get("channel_link", "")
+        username_info = f"\n• <b>ইউজারনেম/আইডি:</b> <code>{t.get('channel_username', 'N/A')}</code>" if ttype == "channel_join" else ""
+        wait_info = f"\n• <b>অপেক্ষার সময়:</b> <code>{t.get('wait_seconds', 8)} সেকেন্ড</code>" if ttype == "ad_wait" else ""
+
+        txt = (
+            f"⚙️ <b>টাস্ক সম্পাদনা: {html.escape(t.get('title', ''))}</b>\n"
+            f"━━━━━━━━━━━━━━━━━━━━\n"
+            f"• <b>আইডি:</b> <code>{t.get('id')}</code>\n"
+            f"• <b>ধরন:</b> {'🌐 ডাইরেক্ট অ্যাড' if ttype == 'ad_wait' else '👥 গ্রুপ/চ্যানেল জয়েন'}\n"
+            f"• <b>নাম/টাইটেল:</b> <code>{html.escape(t.get('title', ''))}</code>\n"
+            f"• <b>লিংক:</b> <code>{url_link}</code>"
+            f"{username_info}"
+            f"{wait_info}\n"
+            f"• <b>পয়েন্ট রিওয়ার্ড:</b> <code>+{t.get('points', 50)} Points</code>\n"
+            f"• <b>স্ট্যাটাস:</b> {'🟢 সক্রিয়' if t.get('active', True) else '🔴 বন্ধ'}\n\n"
+            f"👇 <i>যে অপশনটি পরিবর্তন করতে চান নিচের বাটনে চাপুন:</i>"
+        )
+
+        kb = [
+            [
+                InlineKeyboardButton(text="✏️ নাম (Title) পরিবর্তন", callback_data=f"edtask_title_{tid}"),
+                InlineKeyboardButton(text="🔗 লিংক (URL) পরিবর্তন", callback_data=f"edtask_link_{tid}")
+            ],
+            [
+                InlineKeyboardButton(text="💎 পয়েন্ট (Points) পরিবর্তন", callback_data=f"edtask_pts_{tid}")
+            ]
+        ]
+        if ttype == "ad_wait":
+            kb[1].append(InlineKeyboardButton(text="⏱️ অপেক্ষার সেকেন্ড পরিবর্তন", callback_data=f"edtask_wait_{tid}"))
+        else:
+            kb[1].append(InlineKeyboardButton(text="🏷️ ইউজারনেম পরিবর্তন", callback_data=f"edtask_uname_{tid}"))
+
+        kb.append([
+            InlineKeyboardButton(text=f"{'🔴 নিষ্ক্রিয় করুন' if t.get('active', True) else '🟢 সক্রিয় করুন'}", callback_data=f"tog_task_act_{tid}"),
+            InlineKeyboardButton(text="🗑️ ডিলিট করুন", callback_data=f"del_task_{tid}")
+        ])
+        kb.append([InlineKeyboardButton(text="🔙 সকল টাস্ক তালিকায় ফিরুন", callback_data="br_edit_tasks_list")])
+
+        await query.message.edit_text(txt, parse_mode="HTML", reply_markup=InlineKeyboardMarkup(inline_keyboard=kb))
+        await query.answer()
+        return
+
+    # --- টাস্ক অন/অফ ও মুছে ফেলার প্যানেল ---
     elif data == "br_toggle_tasks":
         if not monetization_tasks:
             await query.answer("কোনো টাস্ক নেই!", show_alert=True)
@@ -1912,7 +2053,7 @@ async def handle_admin_branches(query: types.CallbackQuery):
         for t in monetization_tasks:
             tid = t.get("id")
             title = t.get("title")
-            st_text = "🟢 সক্রিয়" if t.get("active", True) else "🔴 বন্ধ"
+            st_text = "🟢 সচল" if t.get("active", True) else "🔴 বন্ধ"
             kb.append([
                 InlineKeyboardButton(text=f"{st_text}: {title}", callback_data=f"tog_task_act_{tid}"),
                 InlineKeyboardButton(text="🗑️ ডিলিট", callback_data=f"del_task_{tid}")
@@ -1922,7 +2063,7 @@ async def handle_admin_branches(query: types.CallbackQuery):
         await query.message.edit_text(
             "⚙️ <b>টাস্ক সক্রিয়/নিষ্ক্রিয় ও মুছে ফেলার প্যানেল</b>\n"
             "━━━━━━━━━━━━━━━━━━━━\n"
-            "যেকোনো টাস্ক বন্ধ করতে বা মুছে ফেলতে নিচের বোতামে চাপুন:",
+            "যেকোনো টাস্ক চালু/বন্ধ করতে বা স্থায়ীভাবে মুছে ফেলতে নিচের বোতামে চাপুন:",
             parse_mode="HTML",
             reply_markup=InlineKeyboardMarkup(inline_keyboard=kb)
         )
@@ -1936,7 +2077,7 @@ async def handle_admin_branches(query: types.CallbackQuery):
             target_task["active"] = not target_task.get("active", True)
             save_data()
             await query.answer(f"টাস্ক স্ট্যাটাস: {'সক্রিয়' if target_task['active'] else 'নিষ্ক্রিয়'}")
-            query.data = "br_toggle_tasks"
+            query.data = f"edit_task_view_{tid}"
             await handle_admin_branches(query)
         return
 
@@ -1944,11 +2085,44 @@ async def handle_admin_branches(query: types.CallbackQuery):
         tid = data.split("_")[2]
         monetization_tasks[:] = [t for t in monetization_tasks if t.get("id") != tid]
         save_data()
-        await query.answer("🗑️ টাস্ক মুছে ফেলা হয়েছে!", show_alert=True)
-        query.data = "br_toggle_tasks"
+        await query.answer("🗑️ টাস্ক সফলভাবে মুছে ফেলা হয়েছে!", show_alert=True)
+        query.data = "br_edit_tasks_list"
         await handle_admin_branches(query)
         return
 
+    # --- টাস্কের ফিল্ড এডিটের জন্য ইনপুট প্রম্পট হ্যান্ডলার্স ---
+    elif data.startswith("edtask_"):
+        parts = data.split("_")
+        field = parts[1]
+        tid = parts[2]
+        target_task = next((t for t in monetization_tasks if t.get("id") == tid), None)
+        if not target_task:
+            await query.answer("❌ টাস্ক পাওয়া যায়নি!", show_alert=True)
+            return
+
+        admin_input_state[query.from_user.id] = {"action": f"edtask_{field}_{tid}", "chat_id": query.message.chat.id}
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="❌ বাতিল করুন", callback_data=f"edit_task_view_{tid}")]
+        ])
+
+        field_names = {
+            "title": "নতুন নাম / টাইটেল",
+            "link": "নতুন লিংক (URL)",
+            "pts": "নতুন পয়েন্ট সংখ্যা (যেমন: 50)",
+            "wait": "নতুন অপেক্ষার সময় সেকেন্ডে (যেমন: 8 বা 15)",
+            "uname": "নতুন চ্যানেল/গ্রুপ ইউজারনেম (যেমন: @romantic_video900)"
+        }
+        f_name = field_names.get(field, field)
+        curr_val = target_task.get('url') if field=='link' and target_task.get('type')=='ad_wait' else target_task.get('channel_link') if field=='link' else target_task.get('points') if field=='pts' else target_task.get('wait_seconds') if field=='wait' else target_task.get('channel_username') if field=='uname' else target_task.get('title')
+        await query.message.answer(
+            f"✍️ <b>'{target_task.get('title')}'</b> টাস্কের <b>{f_name}</b> লিখে পাঠান:\n"
+            f"━━━━━━━━━━━━━━━━━━━━\n"
+            f"বর্তমান মান: <code>{curr_val}</code>",
+            parse_mode="HTML",
+            reply_markup=kb
+        )
+        await query.answer("ইনপুটের অপেক্ষায়...")
+        return
     # --- গ্রুপে সাপ্তাহিক লিডারবোর্ড ঘোষণা ও পিন ---
     elif data == "act_announce_leaderboard":
         gid = TARGET_GROUP_ID or config.get("target_group_id")
@@ -2716,6 +2890,50 @@ async def handle_admin_text_inputs(message: types.Message):
         config["badge_reaction_emoji"] = text[:4]
         save_data()
         await message.reply(f"✅ লিংক শেয়ারের ভেরিফাইড রিঅ্যাকশন ইমোজি সেট হয়েছে: {text[:4]}")
+
+    # ৫.১ বিদ্যমান টাস্ক সম্পাদনা (নাম, লিংক, পয়েন্ট ইত্যাদি)
+    elif action.startswith("edtask_"):
+        parts = action.split("_")
+        field = parts[1]
+        tid = parts[2]
+        target_task = next((t for t in monetization_tasks if t.get("id") == tid), None)
+        if not target_task:
+            await message.reply("❌ টাস্ক পাওয়া যায়নি!")
+        else:
+            if field == "title":
+                target_task["title"] = text
+                save_data()
+                await message.reply(f"✅ টাস্কের নাম পরিবর্তিত হয়েছে:\n<b>{html.escape(text)}</b>", parse_mode="HTML")
+            elif field == "link":
+                if target_task.get("type") == "ad_wait":
+                    target_task["url"] = text
+                else:
+                    target_task["channel_link"] = text
+                save_data()
+                await message.reply(f"✅ টাস্কের লিংক সফলভাবে আপডেট করা হয়েছে:\n<code>{text}</code>", parse_mode="HTML")
+            elif field == "pts":
+                if text.isdigit():
+                    val = int(text)
+                    target_task["points"] = val
+                    save_data()
+                    await message.reply(f"✅ টাস্কের পয়েন্ট সফলভাবে সেট হয়েছে: <code>+{val} Points</code>", parse_mode="HTML")
+                else:
+                    await message.reply("❌ ভুল ইনপুট! শুধুমাত্র সংখ্যা (যেমন: 50) লিখুন।")
+            elif field == "wait":
+                if text.isdigit():
+                    val = int(text)
+                    target_task["wait_seconds"] = val
+                    save_data()
+                    await message.reply(f"✅ অপেক্ষার সময় সফলভাবে আপডেট হয়েছে: <code>{val} সেকেন্ড</code>", parse_mode="HTML")
+                else:
+                    await message.reply("❌ ভুল ইনপুট! শুধুমাত্র সংখ্যা লিখুন।")
+            elif field == "uname":
+                uname = text.strip()
+                if not uname.startswith("@") and not uname.startswith("-100"):
+                    uname = f"@{uname}"
+                target_task["channel_username"] = uname
+                save_data()
+                await message.reply(f"✅ টাস্কের ইউজারনেম আপডেট হয়েছে: <code>{uname}</code>", parse_mode="HTML")
 
     # ৬. নতুন ডাইরেক্ট অ্যাড টাস্ক তৈরি
     elif action == "new_task_ad":
